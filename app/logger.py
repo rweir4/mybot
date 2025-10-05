@@ -23,12 +23,6 @@ class UsageLogger:
     """
     
     def __init__(self, log_file_path: Optional[str] = None):
-        """
-        Initialize the usage logger.
-        
-        Args:
-            log_file_path: Path to JSON log file. Uses config default if None.
-        """
         self.log_file_path = log_file_path or settings.log_file_path
         self._lock = threading.Lock()
         self._ensure_log_file_exists()
@@ -51,18 +45,6 @@ class UsageLogger:
         error: Optional[str] = None,
         metadata: Optional[Dict] = None
     ):
-        """
-        Log a single API request.
-        
-        Args:
-            endpoint: API endpoint that was called (e.g., "/chat")
-            input_tokens: Number of input tokens used
-            output_tokens: Number of output tokens generated
-            estimated_cost: Estimated cost in USD
-            success: Whether the request succeeded
-            error: Error message if request failed
-            metadata: Additional metadata to log
-        """
         log_entry = {
             "timestamp": datetime.utcnow().isoformat() + "Z",
             "endpoint": endpoint,
@@ -136,17 +118,6 @@ class UsageLogger:
         start_date: Optional[str] = None,
         end_date: Optional[str] = None
     ) -> List[Dict]:
-        """
-        Retrieve logs from the JSON file.
-        
-        Args:
-            limit: Maximum number of logs to return (most recent first)
-            start_date: ISO format date to filter from (inclusive)
-            end_date: ISO format date to filter to (inclusive)
-        
-        Returns:
-            List of log entries
-        """
         with self._lock:
             try:
                 with open(self.log_file_path, 'r') as f:
@@ -175,16 +146,6 @@ class UsageLogger:
         start_date: Optional[str] = None,
         end_date: Optional[str] = None
     ) -> Dict:
-        """
-        Get aggregated statistics from logs.
-        
-        Args:
-            start_date: ISO format date to filter from
-            end_date: ISO format date to filter to
-        
-        Returns:
-            Dictionary with aggregated stats
-        """
         logs = self.get_logs(start_date=start_date, end_date=end_date)
         
         if not logs:
@@ -238,7 +199,6 @@ def log_request(
     error: Optional[str] = None,
     metadata: Optional[Dict] = None
 ):
-    """Log an API request."""
     usage_logger.log_request(
         endpoint=endpoint,
         input_tokens=input_tokens,
@@ -251,15 +211,12 @@ def log_request(
 
 
 def get_logs(limit: Optional[int] = None, start_date: Optional[str] = None, end_date: Optional[str] = None) -> List[Dict]:
-    """Retrieve logs from storage."""
     return usage_logger.get_logs(limit=limit, start_date=start_date, end_date=end_date)
 
 
 def get_usage_stats(start_date: Optional[str] = None, end_date: Optional[str] = None) -> Dict:
-    """Get aggregated usage statistics."""
     return usage_logger.get_stats(start_date=start_date, end_date=end_date)
 
 
 def clear_logs():
-    """Clear all logs."""
     usage_logger.clear_logs()

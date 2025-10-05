@@ -28,12 +28,10 @@ class GlobalRateLimiter:
         self._reset_daily_data()
     
     def _reset_hourly_data(self):
-        """Reset hourly tracking data."""
         self.hourly_requests = []
         self.hourly_reset_time = datetime.now() + timedelta(hours=1)
     
     def _reset_daily_data(self):
-        """Reset daily tracking data."""
         self.daily_tokens_used = 0
         self.daily_estimated_cost = 0.0
         self.daily_reset_time = datetime.now().replace(
@@ -41,7 +39,6 @@ class GlobalRateLimiter:
         ) + timedelta(days=1)
     
     def _clean_old_requests(self):
-        """Remove requests older than 1 hour from the tracking list."""
         cutoff_time = datetime.now() - timedelta(hours=1)
         self.hourly_requests = [
             req_time for req_time in self.hourly_requests 
@@ -49,25 +46,14 @@ class GlobalRateLimiter:
         ]
     
     def _check_hourly_reset(self):
-        """Check if we need to reset hourly counters."""
         if datetime.now() >= self.hourly_reset_time:
             self._reset_hourly_data()
     
     def _check_daily_reset(self):
-        """Check if we need to reset daily counters."""
         if datetime.now() >= self.daily_reset_time:
             self._reset_daily_data()
     
     def check_rate_limit(self) -> Dict[str, any]:
-        """
-        Check if a request is allowed under current rate limits.
-        
-        Raises:
-            HTTPException: If rate limit exceeded or API disabled
-        
-        Returns:
-            dict: Current usage stats
-        """
         with self._lock:
             # Check emergency kill switch first
             if not settings.api_enabled:
@@ -125,13 +111,6 @@ class GlobalRateLimiter:
             }
     
     def record_usage(self, input_tokens: int, output_tokens: int):
-        """
-        Record token usage and update cost estimates.
-        
-        Args:
-            input_tokens: Number of input tokens used
-            output_tokens: Number of output tokens generated
-        """
         with self._lock:
             self._check_daily_reset()
             
@@ -153,12 +132,6 @@ class GlobalRateLimiter:
             }
     
     def get_stats(self) -> Dict[str, any]:
-        """
-        Get current rate limiting statistics.
-        
-        Returns:
-            dict: Current usage statistics
-        """
         with self._lock:
             self._check_hourly_reset()
             self._check_daily_reset()
@@ -194,18 +167,12 @@ rate_limiter = GlobalRateLimiter()
 
 # Convenience functions for use in route handlers
 def check_rate_limit() -> Dict[str, any]:
-    """
-    Check rate limit before processing a request.
-    Raises HTTPException if limit exceeded.
-    """
     return rate_limiter.check_rate_limit()
 
 
 def record_usage(input_tokens: int, output_tokens: int) -> Dict[str, any]:
-    """Record API usage for cost tracking."""
     return rate_limiter.record_usage(input_tokens, output_tokens)
 
 
 def get_rate_limit_stats() -> Dict[str, any]:
-    """Get current rate limiting statistics."""
     return rate_limiter.get_stats()
