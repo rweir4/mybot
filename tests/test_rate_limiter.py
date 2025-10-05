@@ -1,10 +1,3 @@
-"""
-Pytest tests for the rate limiter.
-
-Run with: pytest tests/
-or: pytest tests/test_rate_limiter.py -v
-"""
-
 import pytest
 from fastapi import HTTPException
 from app.rate_limiter import GlobalRateLimiter, check_rate_limit, record_usage, get_rate_limit_stats
@@ -13,12 +6,10 @@ from app.config import settings
 
 @pytest.fixture
 def fresh_limiter():
-    """Create a fresh rate limiter instance for each test."""
     return GlobalRateLimiter()
 
 
 def test_initial_stats(fresh_limiter):
-    """Test that initial stats are zero."""
     stats = fresh_limiter.get_stats()
     
     assert stats['hourly_stats']['requests_used'] == 0
@@ -28,7 +19,6 @@ def test_initial_stats(fresh_limiter):
 
 
 def test_single_request(fresh_limiter):
-    """Test that a single request is allowed."""
     result = fresh_limiter.check_rate_limit()
     
     assert result['requests_this_hour'] == 1
@@ -36,7 +26,6 @@ def test_single_request(fresh_limiter):
 
 
 def test_multiple_requests_under_limit(fresh_limiter):
-    """Test that multiple requests under the limit are allowed."""
     num_requests = min(5, settings.rate_limit_per_hour)
     
     for i in range(num_requests):
@@ -48,7 +37,6 @@ def test_multiple_requests_under_limit(fresh_limiter):
 
 
 def test_rate_limit_exceeded(fresh_limiter):
-    """Test that requests are blocked when limit is exceeded."""
     # Use up all requests
     for _ in range(settings.rate_limit_per_hour):
         fresh_limiter.check_rate_limit()
@@ -62,7 +50,6 @@ def test_rate_limit_exceeded(fresh_limiter):
 
 
 def test_token_usage_recording(fresh_limiter):
-    """Test that token usage is recorded correctly."""
     input_tokens = 1000
     output_tokens = 500
     
@@ -74,7 +61,6 @@ def test_token_usage_recording(fresh_limiter):
 
 
 def test_cost_calculation(fresh_limiter):
-    """Test that cost calculation is accurate."""
     # Claude Sonnet 4.5: $3/M input, $15/M output
     input_tokens = 1_000_000  # Should cost $3
     output_tokens = 1_000_000  # Should cost $15
@@ -86,7 +72,6 @@ def test_cost_calculation(fresh_limiter):
 
 
 def test_daily_cost_limit(fresh_limiter):
-    """Test that requests are blocked when daily cost limit is exceeded."""
     # Record enough usage to exceed daily limit
     # Using 1M output tokens = $15, which exceeds default $5 limit
     fresh_limiter.record_usage(input_tokens=0, output_tokens=1_000_000)
@@ -100,7 +85,6 @@ def test_daily_cost_limit(fresh_limiter):
 
 
 def test_api_disabled():
-    """Test that requests are blocked when API is disabled."""
     # This test uses the global rate_limiter and requires changing settings
     # We'll skip this in favor of integration tests
     # For unit tests, we'd need to mock settings or use dependency injection
@@ -108,7 +92,6 @@ def test_api_disabled():
 
 
 def test_stats_accuracy(fresh_limiter):
-    """Test that stats accurately reflect usage."""
     # Make some requests
     num_requests = 3
     for _ in range(num_requests):
@@ -127,7 +110,6 @@ def test_stats_accuracy(fresh_limiter):
 
 
 def test_global_rate_limiter_singleton():
-    """Test that the global rate limiter functions work."""
     # Get initial stats
     initial_stats = get_rate_limit_stats()
     initial_count = initial_stats['hourly_stats']['requests_used']
