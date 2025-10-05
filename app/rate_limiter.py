@@ -223,13 +223,13 @@ rate_limiter = GlobalRateLimiter()
 
 
 # Convenience functions for use in route handlers
-def check_rate_limit() -> UsageStats:
-    return rate_limiter.check_rate_limit()
+# def check_rate_limit() -> UsageStats:
+#     return rate_limiter.check_rate_limit()
 
 
-def record_usage(input_tokens: int, output_tokens: int) -> UsageRecord:
-    return rate_limiter.record_usage(input_tokens, output_tokens)
+# def record_usage(input_tokens: int, output_tokens: int) -> UsageRecord:
+#     return rate_limiter.record_usage(input_tokens, output_tokens)
 
 
-def get_rate_limit_stats() -> RateLimitStats:
-    return rate_limiter.get_stats()
+# def get_rate_limit_stats() -> RateLimitStats:
+#     return rate_limiter.get_stats()

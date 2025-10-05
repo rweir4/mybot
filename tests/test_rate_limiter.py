@@ -1,6 +1,6 @@
 import pytest
 from fastapi import HTTPException
-from app.rate_limiter import GlobalRateLimiter, check_rate_limit, record_usage, get_rate_limit_stats
+from app.rate_limiter import GlobalRateLimiter, rate_limiter
 from app.config import settings
 
 
@@ -37,11 +37,9 @@ def test_multiple_requests_under_limit(fresh_limiter):
 
 
 def test_rate_limit_exceeded(fresh_limiter):
-    # Use up all requests
     for _ in range(settings.rate_limit_per_hour):
         fresh_limiter.check_rate_limit()
     
-    # Next request should fail
     with pytest.raises(HTTPException) as exc_info:
         fresh_limiter.check_rate_limit()
     
@@ -61,22 +59,17 @@ def test_token_usage_recording(fresh_limiter):
 
 
 def test_cost_calculation(fresh_limiter):
-    # Claude Sonnet 4.5: $3/M input, $15/M output
-    input_tokens = 1_000_000  # Should cost $3
-    output_tokens = 1_000_000  # Should cost $15
+    input_tokens = 1_000_000
+    output_tokens = 1_000_000
     
     result = fresh_limiter.record_usage(input_tokens, output_tokens)
     
-    # Total should be $18
     assert result['estimated_cost'] == pytest.approx(18.0, rel=0.01)
 
 
 def test_daily_cost_limit(fresh_limiter):
-    # Record enough usage to exceed daily limit
-    # Using 1M output tokens = $15, which exceeds default $5 limit
     fresh_limiter.record_usage(input_tokens=0, output_tokens=1_000_000)
     
-    # Next request should fail due to cost limit
     with pytest.raises(HTTPException) as exc_info:
         fresh_limiter.check_rate_limit()
     
@@ -84,20 +77,11 @@ def test_daily_cost_limit(fresh_limiter):
     assert "Daily cost limit exceeded" in str(exc_info.value.detail)
 
 
-def test_api_disabled():
-    # This test uses the global rate_limiter and requires changing settings
-    # We'll skip this in favor of integration tests
-    # For unit tests, we'd need to mock settings or use dependency injection
-    pass
-
-
 def test_stats_accuracy(fresh_limiter):
-    # Make some requests
     num_requests = 3
     for _ in range(num_requests):
         fresh_limiter.check_rate_limit()
     
-    # Record some usage
     fresh_limiter.record_usage(1000, 500)
     fresh_limiter.record_usage(2000, 1000)
     
@@ -105,22 +89,18 @@ def test_stats_accuracy(fresh_limiter):
     
     assert stats['hourly_stats']['requests_used'] == num_requests
     assert stats['hourly_stats']['requests_remaining'] == settings.rate_limit_per_hour - num_requests
-    assert stats['daily_stats']['tokens_used'] == 4500  # 1000+500+2000+1000
+    assert stats['daily_stats']['tokens_used'] == 4500
     assert stats['daily_stats']['estimated_cost'] > 0
 
 
 def test_global_rate_limiter_singleton():
-    # Get initial stats
-    initial_stats = get_rate_limit_stats()
+    initial_stats = rate_limiter.get_stats()
     initial_count = initial_stats['hourly_stats']['requests_used']
     
-    # Make a request
-    check_rate_limit()
+    rate_limiter.check_rate_limit()
     
-    # Check stats updated
-    new_stats = get_rate_limit_stats()
+    new_stats = rate_limiter.get_stats()
     assert new_stats['hourly_stats']['requests_used'] == initial_count + 1
     
-    # Record usage
-    usage = record_usage(100, 50)
+    usage = rate_limiter.record_usage(100, 50)
     assert usage['tokens_used'] == 150

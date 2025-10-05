@@ -12,9 +12,29 @@ import json
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, TypedDict
 from app.config import settings
 import threading
+
+
+class LogEntry(TypedDict):
+    timestamp: str
+    endpoint: str
+    tokens: Dict[str, int]
+    estimated_cost_usd: float
+    success: bool
+    error: Optional[str]
+    metadata: Optional[Dict]
+
+
+class AggregatedStats(TypedDict):
+    total_requests: int
+    successful_requests: int
+    failed_requests: int
+    total_tokens: int
+    total_cost_usd: float
+    average_tokens_per_request: float
+    average_cost_per_request: float
 
 
 class UsageLogger:
@@ -28,7 +48,6 @@ class UsageLogger:
         self._ensure_log_file_exists()
     
     def _ensure_log_file_exists(self):
-        """Create log file and directory if they don't exist."""
         log_path = Path(self.log_file_path)
         log_path.parent.mkdir(parents=True, exist_ok=True)
         
@@ -87,27 +106,35 @@ class UsageLogger:
             print(f"  ERROR: {log_entry['error']}")
     
     def _log_to_file(self, log_entry: Dict):
-        """
-        Append log entry to JSON file.
-        Thread-safe with file locking.
-        """
         with self._lock:
             try:
                 # Read existing logs
-                with open(self.log_file_path, 'r') as f:
-                    logs = json.load(f)
+                try:
+                    with open(self.log_file_path, 'r') as f:
+                        content = f.read()
+                        logs = json.loads(content) if content.strip() else []
+                except FileNotFoundError:
+                    logs = []
                 
                 # Append new entry
                 logs.append(log_entry)
                 
-                # Write back
-                with open(self.log_file_path, 'w') as f:
+                # Write to temp file first (atomic write)
+                temp_path = self.log_file_path + '.tmp'
+                with open(temp_path, 'w') as f:
                     json.dump(logs, f, indent=2)
+                    f.flush()
+                    os.fsync(f.fileno())  # Ensure write to disk
+                
+                # Atomic rename
+                os.replace(temp_path, self.log_file_path)
                     
             except json.JSONDecodeError:
-                # File is corrupted, start fresh
+                # File is corrupted, start fresh with this entry
                 with open(self.log_file_path, 'w') as f:
                     json.dump([log_entry], f, indent=2)
+                    f.flush()
+                    os.fsync(f.fileno())
             except Exception as e:
                 # Log to console if file write fails
                 print(f"⚠️  Failed to write to log file: {e}")
@@ -145,7 +172,7 @@ class UsageLogger:
         self,
         start_date: Optional[str] = None,
         end_date: Optional[str] = None
-    ) -> Dict:
+    ) -> AggregatedStats:
         logs = self.get_logs(start_date=start_date, end_date=end_date)
         
         if not logs:
@@ -190,33 +217,33 @@ usage_logger = UsageLogger()
 
 
 # Convenience functions for use in route handlers
-def log_request(
-    endpoint: str,
-    input_tokens: int,
-    output_tokens: int,
-    estimated_cost: float,
-    success: bool = True,
-    error: Optional[str] = None,
-    metadata: Optional[Dict] = None
-):
-    usage_logger.log_request(
-        endpoint=endpoint,
-        input_tokens=input_tokens,
-        output_tokens=output_tokens,
-        estimated_cost=estimated_cost,
-        success=success,
-        error=error,
-        metadata=metadata
-    )
+# def log_request(
+#     endpoint: str,
+#     input_tokens: int,
+#     output_tokens: int,
+#     estimated_cost: float,
+#     success: bool = True,
+#     error: Optional[str] = None,
+#     metadata: Optional[Dict] = None
+# ):
+#     usage_logger.log_request(
+#         endpoint=endpoint,
+#         input_tokens=input_tokens,
+#         output_tokens=output_tokens,
+#         estimated_cost=estimated_cost,
+#         success=success,
+#         error=error,
+#         metadata=metadata
+#     )
 
 
-def get_logs(limit: Optional[int] = None, start_date: Optional[str] = None, end_date: Optional[str] = None) -> List[Dict]:
-    return usage_logger.get_logs(limit=limit, start_date=start_date, end_date=end_date)
+# def get_logs(limit: Optional[int] = None, start_date: Optional[str] = None, end_date: Optional[str] = None) -> List[Dict]:
+#     return usage_logger.get_logs(limit=limit, start_date=start_date, end_date=end_date)
 
 
-def get_usage_stats(start_date: Optional[str] = None, end_date: Optional[str] = None) -> Dict:
-    return usage_logger.get_stats(start_date=start_date, end_date=end_date)
+# def get_usage_stats(start_date: Optional[str] = None, end_date: Optional[str] = None) -> AggregatedStats:
+#     return usage_logger.get_stats(start_date=start_date, end_date=end_date)
 
 
-def clear_logs():
-    usage_logger.clear_logs()
+# def clear_logs():
+#     usage_logger.clear_logs()

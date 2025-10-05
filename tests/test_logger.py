@@ -3,7 +3,7 @@ import json
 import tempfile
 from pathlib import Path
 from datetime import datetime, timedelta
-from app.logger import UsageLogger, log_request, get_logs, get_usage_stats, clear_logs
+from app.logger import UsageLogger, usage_logger
 
 
 @pytest.fixture
@@ -13,8 +13,6 @@ def temp_log_file():
         f.write("[]")
     
     yield temp_path
-    
-    # Cleanup
     Path(temp_path).unlink(missing_ok=True)
 
 
@@ -121,7 +119,6 @@ def test_log_with_metadata(logger, temp_log_file):
 
 
 def test_get_logs_all(logger):
-    # Add some logs
     for i in range(3):
         logger.log_request(
             endpoint="/chat",
@@ -136,7 +133,6 @@ def test_get_logs_all(logger):
 
 
 def test_get_logs_with_limit(logger):
-    # Add 10 logs
     for i in range(10):
         logger.log_request(
             endpoint="/chat",
@@ -151,7 +147,6 @@ def test_get_logs_with_limit(logger):
 
 
 def test_get_logs_returns_most_recent_first(logger):
-    # Add logs with small delay to ensure different timestamps
     import time
     
     for i in range(3):
@@ -183,11 +178,8 @@ def test_get_stats_empty(logger):
 
 
 def test_get_stats_with_data(logger):
-    # Add successful requests
     logger.log_request("/chat", 1000, 500, 0.0105, success=True)
     logger.log_request("/chat", 2000, 1000, 0.021, success=True)
-    
-    # Add failed request
     logger.log_request("/chat", 100, 0, 0.0, success=False)
     
     stats = logger.get_stats()
@@ -201,7 +193,6 @@ def test_get_stats_with_data(logger):
 
 
 def test_clear_logs(logger, temp_log_file):
-    # Add some logs
     for i in range(5):
         logger.log_request(
             endpoint="/chat",
@@ -278,7 +269,6 @@ def test_thread_safety(logger):
 
 
 def test_corrupted_file_recovery(temp_log_file):
-    # Write corrupted JSON
     with open(temp_log_file, 'w') as f:
         f.write("{invalid json")
     
@@ -300,14 +290,10 @@ def test_corrupted_file_recovery(temp_log_file):
 
 
 def test_global_convenience_functions(temp_log_file):
-    # This tests the global singleton, so we need to be careful
-    # In a real test, you'd mock the global logger
-    
-    # Test that functions exist and are callable
-    assert callable(log_request)
-    assert callable(get_logs)
-    assert callable(get_usage_stats)
-    assert callable(clear_logs)
+    assert callable(usage_logger.log_request)
+    assert callable(usage_logger.get_logs)
+    assert callable(usage_logger.get_stats)
+    assert callable(usage_logger.clear_logs)
 
 
 def test_timestamp_format(logger, temp_log_file):
