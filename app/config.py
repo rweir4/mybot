@@ -7,6 +7,17 @@ from pydantic_settings import BaseSettings
 from typing import Optional
 import os
 
+REQUIRED_API_KEYS = [
+    ('anthropic_api_key', 'ANTHROPIC_API_KEY'),
+    ('pinecone_api_key', 'PINECONE_API_KEY'),
+    ('openai_api_key', 'OPENAI_API_KEY'),
+]
+
+REQUIRED_POSITIVE_API_KEYS = [
+    ('rate_limit_per_hour', 'RATE_LIMIT_PER_HOUR'),
+    ('max_output_tokens', 'MAX_OUTPUT_TOKENS'),
+]
+    
 
 class Settings(BaseSettings):
     """
@@ -61,26 +72,16 @@ settings = Settings()
 
 
 def validate_config():
-    """
-    Validate that all required configuration is present and valid.
-    Call this on startup to fail fast if config is missing.
-    """
     errors = []
     
-    if not settings.anthropic_api_key or settings.anthropic_api_key == "placeholder":
-        errors.append("ANTHROPIC_API_KEY is missing or placeholder")
+    for attr, name in REQUIRED_API_KEYS:
+        value = getattr(settings, attr)
+        if not value or value == "placeholder":
+            errors.append(f"{name} is missing or placeholder")
     
-    if not settings.pinecone_api_key or settings.pinecone_api_key == "placeholder":
-        errors.append("PINECONE_API_KEY is missing or placeholder")
-    
-    if not settings.openai_api_key or settings.openai_api_key == "placeholder":
-        errors.append("OPENAI_API_KEY is missing or placeholder")
-    
-    if settings.rate_limit_per_hour <= 0:
-        errors.append("RATE_LIMIT_PER_HOUR must be positive")
-    
-    if settings.max_output_tokens <= 0:
-        errors.append("MAX_OUTPUT_TOKENS must be positive")
+    for attr, name in REQUIRED_POSITIVE_API_KEYS:
+        if getattr(settings, attr) <= 0:
+            errors.append(f"{name} must be positive")
     
     if errors:
         error_msg = "Configuration validation failed:\n" + "\n".join(f"  - {e}" for e in errors)
