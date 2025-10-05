@@ -23,3 +23,6 @@ anthropic
 
 # Pydantic
 pydantic-settings
+
+# Pytest
+pytest
