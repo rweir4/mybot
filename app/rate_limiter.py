@@ -6,14 +6,68 @@ This implements a simple in-memory rate limiter that tracks:
 - Daily token usage and estimated costs
 - Emergency kill switch check
 
-For a single Railway instance, in-memory is sufficient.
+For a single Railway instance, in-memory is sufficient. For multi-instance
+deployments, consider Redis-based rate limiting.
 """
 
 from datetime import datetime, timedelta
-from typing import Dict, Optional
+from typing import Dict, TypedDict
 from fastapi import HTTPException, status
 from app.config import settings
 import threading
+
+
+class HourlyStats(TypedDict):
+    requests_used: int
+    requests_limit: int
+    requests_remaining: int
+    resets_in_seconds: int
+    resets_at: str
+
+
+class DailyStats(TypedDict):
+    tokens_used: int
+    estimated_cost: float
+    cost_limit: float
+    cost_remaining: float
+    resets_in_seconds: int
+    resets_at: str
+
+
+class RateLimitStats(TypedDict):
+    api_enabled: bool
+    hourly_stats: HourlyStats
+    daily_stats: DailyStats
+
+
+class UsageStats(TypedDict):
+    requests_this_hour: int
+    limit_per_hour: int
+    remaining_this_hour: int
+    daily_cost: float
+    daily_cost_limit: float
+
+
+class UsageRecord(TypedDict):
+    tokens_used: int
+    estimated_cost: float
+    daily_total_tokens: int
+    daily_total_cost: float
+
+
+class RateLimitError(TypedDict):
+    error: str
+    message: str
+    current_usage: str
+    reset_in_minutes: int
+    try_again_at: str
+
+
+class CostLimitError(TypedDict):
+    error: str
+    message: str
+    current_cost: str
+    resets_at: str
 
 
 class GlobalRateLimiter:
@@ -53,55 +107,58 @@ class GlobalRateLimiter:
         if datetime.now() >= self.daily_reset_time:
             self._reset_daily_data()
     
-    def check_rate_limit(self) -> Dict[str, any]:
-        with self._lock:
-            # Check emergency kill switch first
-            if not settings.api_enabled:
-                raise HTTPException(
-                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                    detail=settings.emergency_message
-                )
+    def _check_api_enabled(self):
+        if not settings.api_enabled:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=settings.emergency_message
+            )
+    
+    def _check_hourly_limit(self, current_count: int):
+        if current_count >= settings.rate_limit_per_hour:
+            time_until_reset = (self.hourly_reset_time - datetime.now()).total_seconds()
+            minutes_until_reset = int(time_until_reset / 60)
             
-            # Check and reset counters if needed
+            error: RateLimitError = {
+                "error": "Rate limit exceeded",
+                "message": f"Global rate limit of {settings.rate_limit_per_hour} requests per hour reached",
+                "current_usage": f"{current_count}/{settings.rate_limit_per_hour}",
+                "reset_in_minutes": minutes_until_reset,
+                "try_again_at": self.hourly_reset_time.isoformat()
+            }
+            
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=error
+            )
+    
+    def _check_cost_limit(self):
+        if self.daily_estimated_cost >= settings.max_daily_cost:
+            error: CostLimitError = {
+                "error": "Daily cost limit exceeded",
+                "message": f"Daily cost limit of ${settings.max_daily_cost} reached",
+                "current_cost": f"${self.daily_estimated_cost:.2f}",
+                "resets_at": self.daily_reset_time.isoformat()
+            }
+            
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=error
+            )
+    
+    def check_rate_limit(self) -> UsageStats:
+        with self._lock:
+            self._check_api_enabled()
             self._check_hourly_reset()
             self._check_daily_reset()
-            
-            # Clean old requests
             self._clean_old_requests()
             
-            # Check hourly limit
             current_count = len(self.hourly_requests)
-            if current_count >= settings.rate_limit_per_hour:
-                time_until_reset = (self.hourly_reset_time - datetime.now()).total_seconds()
-                minutes_until_reset = int(time_until_reset / 60)
-                
-                raise HTTPException(
-                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                    detail={
-                        "error": "Rate limit exceeded",
-                        "message": f"Global rate limit of {settings.rate_limit_per_hour} requests per hour reached",
-                        "current_usage": f"{current_count}/{settings.rate_limit_per_hour}",
-                        "reset_in_minutes": minutes_until_reset,
-                        "try_again_at": self.hourly_reset_time.isoformat()
-                    }
-                )
+            self._check_hourly_limit(current_count)
+            self._check_cost_limit()
             
-            # Check daily cost limit
-            if self.daily_estimated_cost >= settings.max_daily_cost:
-                raise HTTPException(
-                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                    detail={
-                        "error": "Daily cost limit exceeded",
-                        "message": f"Daily cost limit of ${settings.max_daily_cost} reached",
-                        "current_cost": f"${self.daily_estimated_cost:.2f}",
-                        "resets_at": self.daily_reset_time.isoformat()
-                    }
-                )
-            
-            # Record this request
             self.hourly_requests.append(datetime.now())
             
-            # Return current stats
             return {
                 "requests_this_hour": current_count + 1,
                 "limit_per_hour": settings.rate_limit_per_hour,
@@ -110,7 +167,7 @@ class GlobalRateLimiter:
                 "daily_cost_limit": settings.max_daily_cost
             }
     
-    def record_usage(self, input_tokens: int, output_tokens: int):
+    def record_usage(self, input_tokens: int, output_tokens: int) -> UsageRecord:
         with self._lock:
             self._check_daily_reset()
             
@@ -131,7 +188,7 @@ class GlobalRateLimiter:
                 "daily_total_cost": self.daily_estimated_cost
             }
     
-    def get_stats(self) -> Dict[str, any]:
+    def get_stats(self) -> RateLimitStats:
         with self._lock:
             self._check_hourly_reset()
             self._check_daily_reset()
@@ -166,13 +223,13 @@ rate_limiter = GlobalRateLimiter()
 
 
 # Convenience functions for use in route handlers
-def check_rate_limit() -> Dict[str, any]:
+def check_rate_limit() -> UsageStats:
     return rate_limiter.check_rate_limit()
 
 
-def record_usage(input_tokens: int, output_tokens: int) -> Dict[str, any]:
+def record_usage(input_tokens: int, output_tokens: int) -> UsageRecord:
     return rate_limiter.record_usage(input_tokens, output_tokens)
 
 
-def get_rate_limit_stats() -> Dict[str, any]:
+def get_rate_limit_stats() -> RateLimitStats:
     return rate_limiter.get_stats()
