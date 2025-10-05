@@ -5,6 +5,7 @@ __pycache__/
 .venv/
 venv/
 data/papers/*.pdf
+data/personal_info
 usage_logs.json
 *.log
 .DS_Store
