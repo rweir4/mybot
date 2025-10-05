@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 from typing import List, Set, Tuple
-from langchain.document_loaders import PyPDFLoader
+from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings
 from pinecone import Pinecone, ServerlessSpec
@@ -78,8 +78,8 @@ def create_or_get_index(index_name: str):
     if index_name not in existing_indexes:
         print(f"Creating new Pinecone index: {index_name}...")
         
-        region_parts = settings.pinecone_environment.split('-')
-        region = f"{region_parts[0]}-{region_parts[1]}"
+        # Extract region from environment (e.g., "us-east-1-aws" -> "us-east-1")
+        region = settings.pinecone_environment.rsplit('-', 1)[0]
         
         pc.create_index(
             name=index_name,

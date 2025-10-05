@@ -1,0 +1,253 @@
+{
+    "openapi": "3.1.0",
+    "info": {
+        "title": "Personal Chatbot API",
+        "description": "AI-powered chatbot with knowledge about a person's background, research, and interests",
+        "version": "1.0.0"
+    },
+    "paths": {
+        "/": {
+            "get": {
+                "summary": "Root",
+                "operationId": "root__get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "title": "Response Root  Get"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/health": {
+            "get": {
+                "summary": "Health",
+                "operationId": "health_health_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HealthResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/chat": {
+            "post": {
+                "summary": "Chat",
+                "operationId": "chat_chat_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ChatRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ChatResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/stats": {
+            "get": {
+                "summary": "Stats",
+                "operationId": "stats_stats_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/StatsResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "ChatRequest": {
+                "properties": {
+                    "message": {
+                        "type": "string",
+                        "maxLength": 1000,
+                        "minLength": 1,
+                        "title": "Message",
+                        "description": "The question to ask"
+                    },
+                    "top_k": {
+                        "anyOf": [
+                            {
+                                "type": "integer",
+                                "maximum": 20.0,
+                                "minimum": 1.0
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Top K",
+                        "description": "Number of context chunks to retrieve"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "message"
+                ],
+                "title": "ChatRequest"
+            },
+            "ChatResponse": {
+                "properties": {
+                    "answer": {
+                        "type": "string",
+                        "title": "Answer"
+                    },
+                    "sources": {
+                        "items": {},
+                        "type": "array",
+                        "title": "Sources"
+                    },
+                    "tokens_used": {
+                        "type": "integer",
+                        "title": "Tokens Used"
+                    },
+                    "estimated_cost": {
+                        "type": "number",
+                        "title": "Estimated Cost"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "answer",
+                    "sources",
+                    "tokens_used",
+                    "estimated_cost"
+                ],
+                "title": "ChatResponse"
+            },
+            "HTTPValidationError": {
+                "properties": {
+                    "detail": {
+                        "items": {
+                            "$ref": "#/components/schemas/ValidationError"
+                        },
+                        "type": "array",
+                        "title": "Detail"
+                    }
+                },
+                "type": "object",
+                "title": "HTTPValidationError"
+            },
+            "HealthResponse": {
+                "properties": {
+                    "status": {
+                        "type": "string",
+                        "title": "Status"
+                    },
+                    "api_enabled": {
+                        "type": "boolean",
+                        "title": "Api Enabled"
+                    },
+                    "config_valid": {
+                        "type": "boolean",
+                        "title": "Config Valid"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "status",
+                    "api_enabled",
+                    "config_valid"
+                ],
+                "title": "HealthResponse"
+            },
+            "StatsResponse": {
+                "properties": {
+                    "rate_limit": {
+                        "type": "object",
+                        "title": "Rate Limit"
+                    },
+                    "usage": {
+                        "type": "object",
+                        "title": "Usage"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "rate_limit",
+                    "usage"
+                ],
+                "title": "StatsResponse"
+            },
+            "ValidationError": {
+                "properties": {
+                    "loc": {
+                        "items": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "integer"
+                                }
+                            ]
+                        },
+                        "type": "array",
+                        "title": "Location"
+                    },
+                    "msg": {
+                        "type": "string",
+                        "title": "Message"
+                    },
+                    "type": {
+                        "type": "string",
+                        "title": "Error Type"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "loc",
+                    "msg",
+                    "type"
+                ],
+                "title": "ValidationError"
+            }
+        }
+    }
+}
