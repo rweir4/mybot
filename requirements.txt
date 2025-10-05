@@ -1,0 +1,20 @@
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-dotenv==1.0.0
+pydantic-settings==2.0.3
+
+# LangChain
+langchain==0.1.0
+langchain-anthropic==0.1.0
+langchain-pinecone==0.0.3
+
+# Vector DB & Embeddings
+pinecone-client==3.0.0
+openai==1.6.0
+
+# Document Processing
+pypdf==3.17.0
+unstructured==0.11.0
+
+# Anthropic
+anthropic==0.8.0
